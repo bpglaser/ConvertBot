@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Maybe.fs" />
+    <Compile Include="SimpleLog.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>

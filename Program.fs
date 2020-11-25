@@ -3,6 +3,7 @@ open System.Diagnostics
 open System.Net
 
 open Maybe
+open SimpleLog
 
 open Funogram.Api
 open Funogram.Telegram.Api
@@ -11,6 +12,10 @@ open Funogram.Telegram.Types
 
 open FSharp.Data
 open FSharp.Data.JsonExtensions
+
+
+let rootLog = new SimpleLog()
+let log msg = rootLog.Log(msg)
 
 
 type Settings =
@@ -30,6 +35,7 @@ type ChatMessage =
 
 
 let sendMessageSync config chatId message =
+    log <| sprintf "Sending %A => %s" chatId message
     let result = 
         sendMessage chatId message
         |> api config
@@ -81,14 +87,8 @@ let convert config chatId (fileName: string) =
         proc.StartInfo.Arguments <- sprintf "/C ffmpeg -i %s %s" fileName outputFileName
         proc.StartInfo.CreateNoWindow <- true
         proc.StartInfo.UseShellExecute <- false
-        // proc.StartInfo.RedirectStandardOutput <- true
-        // proc.StartInfo.RedirectStandardError <- true
-        // proc.OutputDataReceived.Add(fun args -> printfn "%s" args.Data)
-        // proc.ErrorDataReceived.Add(fun args -> eprintfn "%s" args.Data)
 
         proc.Start() |> ignore
-        // proc.BeginOutputReadLine()
-        // proc.BeginErrorReadLine()
         proc.WaitForExit()
 
         if proc.ExitCode <> 0 then
@@ -122,7 +122,6 @@ let cleanup fileState =
 
 let reject config chatMessage =
     sendMessageSync config chatMessage.ChatId "You are not whitelisted. :^)"
-    true
 
 
 let save path names =
@@ -141,41 +140,6 @@ let extractMessage context =
     }
 
 
-let dispatch (context: UpdateContext) handlers =
-    match extractMessage context with
-    | None -> false
-    | Some chatMessage ->
-        printfn "Request from: %A => %A" chatMessage.User chatMessage.Message
-        let rec inner handlers =
-            if Seq.isEmpty handlers then false
-            else
-                let handler = Seq.head handlers
-                if handler chatMessage then true
-                else handlers |> Seq.tail |> inner
-        inner handlers
-
-
-let admin settings handler chatMessage =
-    if Set.contains chatMessage.User settings.Admins then
-        handler chatMessage
-    else
-        false
-
-
-let whitelist settings handler chatMessage =
-    if Set.contains chatMessage.User settings.Whitelist then
-        handler chatMessage
-    else
-        false
-
-
-let command (prefix: string) handler (chatMessage: ChatMessage) =
-    if chatMessage.Message.StartsWith(prefix) then
-        handler chatMessage
-    else
-        false
-
-
 let doDownload config client chatMessage =
     try
         chatMessage.Message
@@ -189,7 +153,6 @@ let doDownload config client chatMessage =
             sendMessageSync config chatMessage.ChatId "Invalid URL"
         | _ ->
             sendMessageSync config chatMessage.ChatId "Bot failed :("
-    true
 
 
 let modifyWhitelist action responseMessage config settings chatMessage =
@@ -207,34 +170,46 @@ let modifyWhitelist action responseMessage config settings chatMessage =
 let sendWhitelist config settings chatMessage =
     let message = sprintf "Whitelist:\n%s" (String.Join("\n", settings.Whitelist |> Array.ofSeq))
     sendMessageSync config chatMessage.ChatId message
-    true
 
 
 let addToWhitelist config settings chatMessage =
     let result = modifyWhitelist Set.add "Added \"%s\" to whitelist" config settings chatMessage
     if result then sendWhitelist config settings chatMessage
-    else false
 
 
 let removeFromWhitelist config settings chatMessage =
     let result = modifyWhitelist Set.remove "Removed \"%s\" from whitelist" config settings chatMessage
     if result then sendWhitelist config settings chatMessage
-    else false
+
+
+let (|Command|_|) (prefix: string) chatMessage =
+    if chatMessage.Message.StartsWith(prefix) then Some chatMessage
+    else None
 
 
 let onUpdate config client settings (context: UpdateContext) =
-    let admin = admin settings
-    let whitelist = whitelist settings
-    let addToWhitelist = addToWhitelist config settings
-    let removeFromWhitelist = removeFromWhitelist config settings
-    let sendWhitelist = sendWhitelist config settings
-    dispatch context [
-        admin <| command "/whitelist add" addToWhitelist
-        admin <| command "/whitelist remove" removeFromWhitelist
-        admin <| command "/whitelist" sendWhitelist
-        whitelist (doDownload config client)
-        reject config
-    ] |> ignore
+    let isAdmin user = Set.contains user settings.Admins
+    let isWhitelist user = Set.contains user settings.Whitelist
+
+    match extractMessage context with
+    | None -> ()
+    | Some chatMessage ->
+        log <| sprintf "Message from %s: %s" chatMessage.User chatMessage.Message
+        match chatMessage with
+        | Command "/whitelist add" msg when msg.User |> isAdmin ->
+            addToWhitelist config settings msg
+
+        | Command "/whitelist remove" msg when msg.User |> isAdmin ->
+            removeFromWhitelist config settings msg
+
+        | Command "/whitelist" msg when msg.User |> isAdmin ->
+            sendWhitelist config settings msg
+
+        | msg when msg.User |> isWhitelist ->
+            doDownload config client msg
+
+        | msg ->
+            reject config msg
 
 
 let loadSettings() =
@@ -257,7 +232,7 @@ let runClient settings =
 [<EntryPoint>]
 let main argv =
     let settings = loadSettings()
-    printfn "Loaded settings: %A" settings
+    log <| sprintf "Loaded settings: %A" settings
     settings
     |> runClient
     |> Async.RunSynchronously
