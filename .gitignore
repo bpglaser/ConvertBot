@@ -1,0 +1,7 @@
+.ionide
+.vs
+bin
+obj
+admins
+token
+whitelist
