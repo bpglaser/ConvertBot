@@ -14,8 +14,7 @@ open FSharp.Data
 open FSharp.Data.JsonExtensions
 
 
-let rootLog = new SimpleLog()
-let log msg = rootLog.Log(msg)
+let log msg = SimpleLog.Log(msg)
 
 
 type Settings =
@@ -233,7 +232,10 @@ let runClient settings =
 let main argv =
     let settings = loadSettings()
     log <| sprintf "Loaded settings: %A" settings
-    settings
-    |> runClient
+    [ settings |> runClient
+      StatusServer.run() ]
+    |> Async.Parallel
     |> Async.RunSynchronously
+    |> ignore
     0
+
