@@ -24,7 +24,7 @@ type Settings =
 
 
 type FileState =
-    { Downloaded: string
+    { Downloaded: string option
       Converted: string }
 
 type ChatMessage =
@@ -45,7 +45,7 @@ let sendMessageSync config chatId message =
 
 
 let isRedditUri (uri: Uri) =
-    uri.Host = "www.reddit.com"
+    uri.Host = "www.reddit.com" || uri.Host = "v.redd.it"
 
 
 let getRedditPath (client: WebClient) (uri: Uri) =
@@ -55,21 +55,39 @@ let getRedditPath (client: WebClient) (uri: Uri) =
     fallback.AsString() |> Uri
 
 
-let download config chatId (client: WebClient) (uri: Uri) =
+let download config chatId (client: WebClient) (convert: string -> FileState) (uri: Uri) =
     sendMessageSync config chatId "Downloading..."
-    let uri = if isRedditUri uri then getRedditPath client uri else uri
-    let parts = uri.AbsolutePath.Split('/')
-    let fileName = Array.last parts
-    printfn "Downloading [%s] to [%s]..." (uri.ToString()) fileName
-    client.DownloadFile(uri, fileName)
-    printfn "Download finished."
-    fileName
+
+    if isRedditUri uri then
+        use proc = new Process()
+        proc.StartInfo.FileName <- "cmd.exe"
+        proc.StartInfo.Arguments <- sprintf "/C python -m youtube_dl %s" (uri.ToString())
+        proc.StartInfo.CreateNoWindow <- true
+        proc.StartInfo.UseShellExecute <- false
+
+
+        printfn "Downloading [%s]..." (uri.ToString())
+        proc.Start() |> ignore
+        proc.WaitForExit()
+        printfn "Download finished."
+
+        let fileName = System.IO.Directory.EnumerateFiles(".", "*.mp4") |> Seq.last
+
+        { Downloaded = None 
+          Converted = fileName }
+    else
+        let parts = uri.AbsolutePath.Split('/')
+        let fileName = Array.last parts
+        printfn "Downloading [%s] to [%s]..." (uri.ToString()) fileName
+        client.DownloadFile(uri, fileName)
+        printfn "Download finished."
+        convert fileName
 
 
 let convert config chatId (fileName: string) =
     if fileName.EndsWith(".mp4") then
         printfn "No conversion needed."
-        { Downloaded = fileName
+        { Downloaded = Some fileName
           Converted = fileName }
     else 
         sendMessageSync config chatId "Converting..."
@@ -94,7 +112,7 @@ let convert config chatId (fileName: string) =
             raise (Exception("ffmpeg failed"))
 
         printfn "Converting done."
-        { Downloaded = fileName
+        { Downloaded = Some fileName
           Converted = outputFileName }
 
 
@@ -113,8 +131,8 @@ let reply config chatID fileState =
 
 
 let cleanup fileState =
-    if IO.File.Exists(fileState.Downloaded) then
-        IO.File.Delete(fileState.Downloaded)
+    if fileState.Downloaded.IsSome && IO.File.Exists(fileState.Downloaded.Value) then
+        IO.File.Delete(fileState.Downloaded.Value)
     if IO.File.Exists(fileState.Converted) then
         IO.File.Delete(fileState.Converted)
 
@@ -143,14 +161,14 @@ let doDownload config client chatMessage =
     try
         chatMessage.Message
         |> Uri
-        |> download config chatMessage.ChatId client
-        |> convert config chatMessage.ChatId
+        |> download config chatMessage.ChatId client (convert config chatMessage.ChatId)
         |> reply config chatMessage.ChatId
         |> cleanup
     with
         | :? UriFormatException ->
             sendMessageSync config chatMessage.ChatId "Invalid URL"
-        | _ ->
+        | e ->
+            log ($"Bot failed: {e.ToString()}")
             sendMessageSync config chatMessage.ChatId "Bot failed :("
 
 
