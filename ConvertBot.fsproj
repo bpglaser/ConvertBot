@@ -4,8 +4,12 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Convert.fs" />
+    <Compile Include="AsyncResult.fs" />
     <Compile Include="SimpleLog.fs" />
+    <Compile Include="FunogramHelpers.fs" />
+    <Compile Include="Settings.fs" />
+    <Compile Include="Whitelist.fs" />
+    <Compile Include="Convert.fs" />
     <Compile Include="StatusServer.fs" />
     <Compile Include="Maybe.fs" />
     <Compile Include="Watcher.fs" />

@@ -16,18 +16,20 @@ type LogMsg =
 type SimpleLog() =
     static let output = new StreamWriter("log.txt", true, AutoFlush = true)
 
-    static let agent = MailboxProcessor.Start(fun inbox ->
-        let rec loop log = async {
-            let! msg = inbox.Receive()
-            match msg with
-            | Send msg ->
-                let log = msg :: log
-                return! loop (log |> List.safeTake 20)
-            | Get channel ->
-                channel.Reply(log |> List.rev)
-                return! loop log
-        }
-        loop [])
+    static let agent =
+        MailboxProcessor.Start(fun inbox ->
+            let rec loop log =
+                async {
+                    let! msg = inbox.Receive()
+                    match msg with
+                    | Send msg ->
+                        let log = msg :: log
+                        return! loop (log |> List.safeTake 20)
+                    | Get channel ->
+                        channel.Reply(log |> List.rev)
+                        return! loop log
+                }
+            loop [])
 
     static member GetTail() = agent.PostAndAsyncReply(fun channel -> Get channel)
 
@@ -44,3 +46,5 @@ type SimpleLog() =
         member _.Dispose() =
             output.Close()
             output.Dispose()
+
+let log s = SimpleLog.Log(s)
