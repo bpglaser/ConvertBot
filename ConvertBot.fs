@@ -116,7 +116,7 @@ let sendError config chatMessage s =
         | Error e -> logf "Failed to send error! %s" e
     }
 
-let runClient (settings: Settings) =
+let run (settings: Settings) =
     let config = { defaultConfig with Token = settings.Token }
     use client = new WebClient()
 
