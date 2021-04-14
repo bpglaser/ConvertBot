@@ -7,6 +7,8 @@ let result a =
 
 let map (f: 'a -> 'b) (a: Async<Result<'a, 'c>>): Async<Result<'b, 'c>> = a |> Async.map (Result.map f)
 
+let mapError (f: 'b -> 'c) (a: Async<Result<'a, 'b>>): Async<Result<'a, 'c>> = a |> Async.map (Result.mapError f)
+
 let bind (f: 'a -> Async<Result<'b, 'c>>) (a: Async<Result<'a, 'c>>): Async<Result<'b, 'c>> =
     async {
         let! r = a
