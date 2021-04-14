@@ -1,8 +1,9 @@
 module Watcher
 
+open SimpleLog
+
 open System.IO
 open System.Threading
-
 
 let watchForCreation path filter f =
     let watcher = new FileSystemWatcher(path, filter)
@@ -19,8 +20,8 @@ let watchForCreation path filter f =
             do! Async.Sleep 5000
             let! result = f e.FullPath
             match result with
-            | Ok _ -> printfn "conversion done!"
-            | Error e -> printfn "%A" e
+            | Ok _ -> log "conversion done!"
+            | Error e -> logf "%A" e
             return! inner()
         }
 
@@ -29,7 +30,7 @@ let watchForCreation path filter f =
     let rec modified() =
         async {
             let! e = Async.AwaitEvent watcher.Changed
-            printfn "%A" e.ChangeType
+            logf "%A" e.ChangeType
             return! modified()
         }
     [ inner()

@@ -5,13 +5,16 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="AsyncResult.fs" />
+    <Compile Include="Maybe.fs" />
     <Compile Include="SimpleLog.fs" />
     <Compile Include="FunogramHelpers.fs" />
     <Compile Include="Settings.fs" />
     <Compile Include="Whitelist.fs" />
     <Compile Include="Convert.fs" />
+    <Compile Include="YouTubeDL.fs" />
+    <Compile Include="Reddit.fs" />
+    <Compile Include="ConvertBot.fs" />
     <Compile Include="StatusServer.fs" />
-    <Compile Include="Maybe.fs" />
     <Compile Include="Watcher.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>

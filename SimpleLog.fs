@@ -48,3 +48,5 @@ type SimpleLog() =
             output.Dispose()
 
 let log s = SimpleLog.Log(s)
+
+let logf f s = sprintf f s |> log
