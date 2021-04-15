@@ -72,17 +72,21 @@ let cleanup fileState =
     safeDelete fileState.Downloaded
     safeDelete fileState.Converted
 
+let parseUri s =
+    match System.Uri.TryCreate(s, UriKind.Absolute) with
+    | true, uri -> Ok uri
+    | _ -> Error "Invalid uri"
+
 let doDownload config client chatMessage =
     let chatId = chatMessage.ChatId
 
     let sendMessage s a =
-        a
-        |> sprintf s
+        sprintf s a
         |> (sendMessageAsync config chatId)
 
     chatMessage.Message
-    |> Uri
-    |> AsyncResult.result
+    |> parseUri
+    |> Async.result
     |> AsyncResult.tap (sendMessage "Downloading %A")
     |> AsyncResult.bind (download client)
     |> AsyncResult.tap (sendMessage "Converting %s")
@@ -126,8 +130,8 @@ let run (settings: Settings) =
                 context
                 |> extractMessage
             onUpdate config client settings message
-            |> AsyncResult.mapError (sendError config message)
+            |> AsyncResult.bindError (sendError config message)
+            |> Async.Ignore
             |> Async.RunSynchronously
-            |> ignore
         } |> ignore
     startBot config updatesArrived None

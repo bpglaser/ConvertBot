@@ -7,8 +7,6 @@ let result a =
 
 let map (f: 'a -> 'b) (a: Async<Result<'a, 'c>>): Async<Result<'b, 'c>> = a |> Async.map (Result.map f)
 
-let mapError (f: 'b -> 'c) (a: Async<Result<'a, 'b>>): Async<Result<'a, 'c>> = a |> Async.map (Result.mapError f)
-
 let bind (f: 'a -> Async<Result<'b, 'c>>) (a: Async<Result<'a, 'c>>): Async<Result<'b, 'c>> =
     async {
         let! r = a
@@ -17,6 +15,16 @@ let bind (f: 'a -> Async<Result<'b, 'c>>) (a: Async<Result<'a, 'c>>): Async<Resu
             let next: Async<Result<'b, 'c>> = f value
             return! next
         | Error err -> return (Error err)
+    }
+
+let bindError (f: 'a -> Async<'b>) (a: Async<Result<'c, 'a>>): Async<Result<'c, 'b>> =
+    async {
+        let! r = a
+        match r with
+        | Ok value -> return Ok value
+        | Error err ->
+            let! err = f err
+            return Error err
     }
 
 let compose (f: 'a -> Async<Result<'b, 'e>>) (g: 'b -> Async<Result<'c, 'e>>): 'a -> Async<Result<'c, 'e>> =
