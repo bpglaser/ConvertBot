@@ -2,10 +2,9 @@ module ConvertBot
 
 open System
 open System.IO
-open System.Net
+open System.Net.Http
 
 open FunogramHelpers
-open Maybe
 open Settings
 open SimpleLog
 open Whitelist
@@ -19,7 +18,7 @@ type FileState =
     { Downloaded: string
       Converted: string }
 
-let download (client: WebClient) uri =
+let download (client: HttpClient) uri =
     async {
         if Reddit.isRedditUri uri then
             return! YouTubeDL.download uri
@@ -27,7 +26,12 @@ let download (client: WebClient) uri =
             let parts = uri.AbsolutePath.Split('/')
             let fileName = Array.last parts
             log <| sprintf "Downloading [%s] to [%s]..." (uri.ToString()) fileName
-            client.DownloadFile(uri, fileName)
+            use! source =
+                uri.ToString()
+                |> client.GetStreamAsync
+                |> Async.AwaitTask
+            use fileStream = File.OpenWrite fileName
+            do! source.CopyToAsync(fileStream) |> Async.AwaitTask
             log "Download finished."
             return Ok fileName
     }
@@ -121,17 +125,17 @@ let sendError config chatMessage s =
     }
 
 let run (settings: Settings) =
-    let config = { defaultConfig with Token = settings.Token }
-    use client = new WebClient()
+    let client = new HttpClient()
+    let config =
+        { defaultConfig with
+            Token = settings.Token
+            Client = client }
 
     let updatesArrived context =
-        maybe {
-            let! message =
-                context
-                |> extractMessage
+        match context |> extractMessage with
+        | None -> async.Zero()
+        | Some message ->
             onUpdate config client settings message
             |> AsyncResult.bindError (sendError config message)
             |> Async.Ignore
-            |> Async.RunSynchronously
-        } |> ignore
-    startBot config updatesArrived None
+    startBotAsync config updatesArrived None
