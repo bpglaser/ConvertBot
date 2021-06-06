@@ -8,14 +8,18 @@ let save path names = IO.File.WriteAllLinesAsync(path, Array.ofSeq names) |> Asy
 
 let modifyWhitelist action responseMessage config (settings: Settings) chatMessage =
     async {
-        let words = chatMessage.Message.Split(' ')
-        if words.Length = 3 then
-            let user = words.[2]
-            settings.Whitelist <- action user settings.Whitelist
-            do! save "whitelist" settings.Whitelist
-            return! sendMessageAsync config chatMessage.ChatId (sprintf responseMessage user)
-        else
-            return Error ""
+        match chatMessage.Message with
+        | None -> 
+            return Error "No chat message provided"
+        | Some msg ->
+            let words = msg.Split(' ')
+            if words.Length = 3 then
+                let user = words.[2]
+                settings.Whitelist <- action user settings.Whitelist
+                do! save "whitelist" settings.Whitelist
+                return! sendMessageAsync config chatMessage.ChatId (sprintf responseMessage user)
+            else
+                return Error "Invalid command"
     }
 
 let sendWhitelist config (settings: Settings) chatMessage =

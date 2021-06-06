@@ -77,42 +77,74 @@ let cleanup fileState =
     safeDelete fileState.Converted
 
 let parseUri s =
-    match System.Uri.TryCreate(s, UriKind.Absolute) with
-    | true, uri -> Ok uri
-    | _ -> Error "Invalid uri"
+    match s with
+    | None -> Error "No chat message provided"
+    | Some s ->
+        match System.Uri.TryCreate(s, UriKind.Absolute) with
+        | true, uri -> Ok uri
+        | _ -> Error "Invalid uri"
 
-let doDownload config client chatMessage =
-    let chatId = chatMessage.ChatId
-
+let convertReplyCleanup config chatId =
     let sendMessage s a =
         sprintf s a
         |> (sendMessageAsync config chatId)
+    AsyncResult.tap (sendMessage "Converting %s")
+    >> AsyncResult.bind convert
+    >> AsyncResult.tap (sendMessage "Uploading...%A")
+    >> AsyncResult.bind (reply config chatId)
+    >> AsyncResult.map cleanup
 
+let convertWebm config client (chatMessage: ChatMessage) : Async<Result<unit, string>> =
+    let chatId = chatMessage.ChatId
+    let sendMessage s a =
+        sprintf s a
+        |> (sendMessageAsync config chatId)
+    let doc =
+        chatMessage.Context.Update.Message
+        |> Option.bind (fun msg -> msg.Document)
+    match doc with
+    | None ->
+        Error "No file provided" |> Async.result
+    | Some doc ->
+        doc
+        |> AsyncResult.result
+        |> AsyncResult.tap (sendMessage "Downloading %A")
+        |> AsyncResult.bind (downloadDocument config client)
+        |> convertReplyCleanup config chatId
+
+let doDownload config client chatMessage =
+    let chatId = chatMessage.ChatId
+    let sendMessage s a =
+        sprintf s a
+        |> (sendMessageAsync config chatId)
     chatMessage.Message
     |> parseUri
     |> Async.result
     |> AsyncResult.tap (sendMessage "Downloading %A")
     |> AsyncResult.bind (download client)
-    |> AsyncResult.tap (sendMessage "Converting %s")
-    |> AsyncResult.bind convert
-    |> AsyncResult.tap (sendMessage "Uploading...%A")
-    |> AsyncResult.bind (reply config chatId)
-    |> AsyncResult.map cleanup
+    |> convertReplyCleanup config chatId
 
 let reject config chatMessage = sendMessageAsync config chatMessage.ChatId "You are not whitelisted. :^)"
 
 let onUpdate config client settings (chatMessage: ChatMessage) =
+    chatMessage |> isVideoMessage |> printfn "%A"
     async {
-        let isAdmin user = Set.contains user settings.Admins
-        let isWhitelist user = Set.contains user settings.Whitelist
-        log <| sprintf "Message from %s: %s" chatMessage.User chatMessage.Message
+        let isAdmin = Set.contains chatMessage.User settings.Admins
+        let isWhitelist = Set.contains chatMessage.User settings.Whitelist
+        log <| sprintf "Message from %s: %A" chatMessage.User chatMessage.Message
         match chatMessage with
-        | Command "/whitelist add" msg when msg.User |> isAdmin -> return! addToWhitelist config settings msg
-        | Command "/whitelist remove" msg when msg.User |> isAdmin ->
+        | Command "/whitelist add" msg when isAdmin ->
+            return! addToWhitelist config settings msg
+        | Command "/whitelist remove" msg when isAdmin ->
             return! removeFromWhitelist config settings msg
-        | Command "/whitelist" msg when msg.User |> isAdmin -> return! sendWhitelist config settings msg
-        | msg when msg.User |> isWhitelist -> return! doDownload config client msg
-        | msg -> return! reject config msg
+        | Command "/whitelist" msg when isAdmin ->
+            return! sendWhitelist config settings msg
+        | msg when isWhitelist && isVideoMessage msg ->
+            return! convertWebm config client msg
+        | msg when isWhitelist ->
+            return! doDownload config client msg
+        | msg ->
+            return! reject config msg
     }
 
 let sendError config chatMessage s =
@@ -133,7 +165,9 @@ let run (settings: Settings) =
 
     let updatesArrived context =
         match context |> extractMessage with
-        | None -> async.Zero()
+        | None ->
+            log <| sprintf "Unable to extract message: %A" context.Update
+            async.Zero()
         | Some message ->
             onUpdate config client settings message
             |> AsyncResult.bindError (sendError config message)
