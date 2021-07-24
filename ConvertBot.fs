@@ -156,20 +156,26 @@ let sendError config chatMessage s =
         | Error e -> logf "Failed to send error! %s" e
     }
 
-let run (settings: Settings) =
-    let client = new HttpClient()
-    let config =
-        { defaultConfig with
-            Token = settings.Token
-            Client = client }
+let rec run (settings: Settings) =
+    try
+        let client = new HttpClient()
+        let config =
+            { defaultConfig with
+                Token = settings.Token
+                Client = client
+                OnError = fun e -> logf "Encountered error %A" e }
 
-    let updatesArrived context =
-        match context |> extractMessage with
-        | None ->
-            log <| sprintf "Unable to extract message: %A" context.Update
-            async.Zero()
-        | Some message ->
-            onUpdate config client settings message
-            |> AsyncResult.bindError (sendError config message)
-            |> Async.Ignore
-    startBotAsync config updatesArrived None
+        let updatesArrived context =
+            match context |> extractMessage with
+            | None ->
+                log <| sprintf "Unable to extract message: %A" context.Update
+                async.Zero()
+            | Some message ->
+                onUpdate config client settings message
+                |> AsyncResult.bindError (sendError config message)
+                |> Async.Ignore
+        startBotAsync config updatesArrived None
+    with
+        | e ->
+            logf "Run encountered exception: %A" e
+            run settings
