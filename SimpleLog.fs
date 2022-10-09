@@ -17,10 +17,11 @@ type SimpleLog() =
     static let output = new StreamWriter("log.txt", true, AutoFlush = true)
 
     static let agent =
-        MailboxProcessor.Start(fun inbox ->
+        MailboxProcessor.Start (fun inbox ->
             let rec loop log =
                 async {
                     let! msg = inbox.Receive()
+
                     match msg with
                     | Send msg ->
                         let log = msg :: log
@@ -29,9 +30,11 @@ type SimpleLog() =
                         channel.Reply(log |> List.rev)
                         return! loop log
                 }
+
             loop [])
 
-    static member GetTail() = agent.PostAndAsyncReply(fun channel -> Get channel)
+    static member GetTail() =
+        agent.PostAndAsyncReply(fun channel -> Get channel)
 
     static member Log(message: string) =
         let now = DateTime.Now

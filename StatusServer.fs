@@ -6,10 +6,11 @@ open Suave
 open Suave.Filters
 open Suave.Operators
 
-let status() =
+let status () =
     fun ctx ->
         async {
             let! log = SimpleLog.GetTail()
+
             let lines =
                 log
                 |> List.map (sprintf "<p>%s</p>")
@@ -20,9 +21,9 @@ let status() =
             return! Successful.OK response ctx
         }
 
-let app = choose [ GET >=> choose [ path "/status" >=> status() ] ]
+let app = choose [ GET >=> choose [ path "/status" >=> status () ] ]
 
-let run() =
+let run () =
     async {
         let _, server = startWebServerAsync defaultConfig app
         do! server

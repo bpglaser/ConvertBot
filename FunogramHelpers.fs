@@ -30,7 +30,9 @@ let convertFunogramResult (result: Result<'a, ApiResponseError>) =
     | Error e -> Error e.Description
 
 let sendMessageAsync config chatId message =
-    sprintf "Sending %A => %s" chatId message |> SimpleLog.Log
+    sprintf "Sending %A => %s" chatId message
+    |> SimpleLog.Log
+
     sendMessage chatId message
     |> api config
     |> Async.map convertFunogramResult
@@ -40,14 +42,17 @@ let extractMessage (context: UpdateContext) =
         let! message = context.Update.Message
         let! user = message.Chat.Username
         let chatId = message.Chat.Id
-        return { User = user
-                 Message = message.Text
-                 ChatId = chatId
-                 Context = context }
+
+        return
+            { User = user
+              Message = message.Text
+              ChatId = chatId
+              Context = context }
     }
 
 let isVideoMessage (chatMessage: ChatMessage) =
     let context = chatMessage.Context
+
     context.Update.Message
     |> Option.bind (fun msg -> msg.Document)
     |> Option.bind (fun doc -> doc.MimeType)
@@ -55,21 +60,22 @@ let isVideoMessage (chatMessage: ChatMessage) =
 
 let downloadDocument config (client: HttpClient) (doc: Document) =
     async {
-        let! file =
-            doc.FileId
-            |> getFile
-            |> api config
+        let! file = doc.FileId |> getFile |> api config
+
         match file with
-        | Error e ->
-            return Error e.Description
+        | Error e -> return Error e.Description
         | Ok file ->
             match file.FilePath with
-            | None ->
-                return Error "No file path for file"
+            | None -> return Error "No file path for file"
             | Some filePath ->
                 let uri = $"https://api.telegram.org/file/bot{config.Token}/{filePath}"
                 use! inStream = client.GetStreamAsync(uri) |> Async.AwaitTask
-                let tempFilename = Path.GetTempPath() + Guid.NewGuid().ToString() + ".webm"
+
+                let tempFilename =
+                    Path.GetTempPath()
+                    + Guid.NewGuid().ToString()
+                    + ".webm"
+
                 printfn "%A" tempFilename
                 use outStream = File.Create tempFilename
                 do! inStream.CopyToAsync outStream |> Async.AwaitTask

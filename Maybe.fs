@@ -6,16 +6,17 @@ type MaybeBuilder() =
     member this.ReturnFrom(x) = x
     member this.Zero() = None
     member this.Delay(f) = f
-    member this.Run(f) = f()
+    member this.Run(f) = f ()
 
     member this.Combine(a, b) =
         match a with
         | Some _ -> a
-        | None -> b()
+        | None -> b ()
 
     member this.TryWith(m, f) =
         try
-            this.ReturnFrom(m())
-        with e -> f e
+            this.ReturnFrom(m ())
+        with
+        | e -> f e
 
 let maybe = MaybeBuilder()

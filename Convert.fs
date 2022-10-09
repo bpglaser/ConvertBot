@@ -8,7 +8,8 @@ let ffmpegConvertMP4 (fileName: string) =
         let baseName = fileName.Substring(0, fileName.LastIndexOf('.'))
         let outputFileName = sprintf "%s.mp4" baseName
 
-        if IO.File.Exists outputFileName then IO.File.Delete outputFileName
+        if IO.File.Exists outputFileName then
+            IO.File.Delete outputFileName
 
         use proc = new Process()
         proc.StartInfo.FileName <- "cmd.exe"
@@ -20,5 +21,8 @@ let ffmpegConvertMP4 (fileName: string) =
         proc.Start() |> ignore
         let! _ = proc.Exited |> Async.AwaitEvent
 
-        if proc.ExitCode <> 0 then return Error "ffmpeg failed" else return Ok outputFileName
+        if proc.ExitCode <> 0 then
+            return Error "ffmpeg failed"
+        else
+            return Ok outputFileName
     }

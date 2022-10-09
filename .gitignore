@@ -1,10 +1,11 @@
+*.mp4
+*.webm
+.fake
 .ionide
 .vs
+/log.txt
+admins
 bin
 obj
-admins
 token
 whitelist
-/log.txt
-
-.fake

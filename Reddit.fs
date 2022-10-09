@@ -6,7 +6,9 @@ open System.Net
 open FSharp.Data
 open FSharp.Data.JsonExtensions
 
-let isRedditUri (uri: Uri) = uri.Host = "www.reddit.com" || uri.Host = "v.redd.it"
+let isRedditUri (uri: Uri) =
+    uri.Host = "www.reddit.com"
+    || uri.Host = "v.redd.it"
 
 let getRedditPath (client: WebClient) (uri: Uri) =
     let result = client.DownloadString(sprintf "%s.json" (uri.ToString()))
