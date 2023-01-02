@@ -3,6 +3,7 @@
 .fake
 .ionide
 .vs
+.vscode
 /log.txt
 admins
 bin
