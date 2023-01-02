@@ -8,9 +8,8 @@ open SimpleLog
 
 open Funogram.Api
 open Funogram.Types
-open Funogram.Telegram.Api
+open Funogram.Telegram
 open Funogram.Telegram.Bot
-open Funogram.Telegram.Types
 open System
 
 type ChatMessage =
@@ -33,7 +32,7 @@ let sendMessageAsync config chatId message =
     sprintf "Sending %A => %s" chatId message
     |> SimpleLog.Log
 
-    sendMessage chatId message
+    Api.sendMessage chatId message
     |> api config
     |> Async.map convertFunogramResult
 
@@ -58,9 +57,9 @@ let isVideoMessage (chatMessage: ChatMessage) =
     |> Option.bind (fun doc -> doc.MimeType)
     |> (=) (Some "video/webm")
 
-let downloadDocument config (client: HttpClient) (doc: Document) =
+let downloadDocument config (client: HttpClient) (doc: Types.Document) =
     async {
-        let! file = doc.FileId |> getFile |> api config
+        let! file = doc.FileId |> Api.getFile |> api config
 
         match file with
         | Error e -> return Error e.Description

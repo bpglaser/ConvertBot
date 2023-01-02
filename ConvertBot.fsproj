@@ -20,10 +20,8 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="fsharp.data" Version="3.3.3" />
+    <PackageReference Include="Funogram" Version="2.0.5" />
+    <PackageReference Include="Funogram.Telegram" Version="6.2.0" />
     <PackageReference Include="Suave" Version="2.5.6" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\Funogram\src\Funogram\Funogram.fsproj" />
-    <ProjectReference Include="..\Funogram\src\Funogram.Telegram\Funogram.Telegram.fsproj" />
   </ItemGroup>
 </Project>

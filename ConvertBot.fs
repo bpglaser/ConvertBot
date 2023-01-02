@@ -10,9 +10,9 @@ open SimpleLog
 open Whitelist
 
 open Funogram.Api
-open Funogram.Telegram.Api
 open Funogram.Telegram.Bot
 open Funogram.Telegram.Types
+open Funogram.Telegram
 
 type FileState =
     { Downloaded: string
@@ -71,7 +71,7 @@ let reply config chatID fileState =
         use stream = File.Open(fileState.Converted, FileMode.Open)
 
         let! response =
-            sendVideo chatID (FileToSend.File(fileState.Converted, stream)) ""
+            Api.sendVideo chatID (InputFile.File(fileState.Converted, stream)) ""
             |> api config
             |> Async.map convertFunogramResult
 
@@ -128,7 +128,7 @@ let convertWebm config client (chatMessage: ChatMessage) : Async<Result<unit, st
         |> AsyncResult.bind (downloadDocument config client)
         |> convertReplyCleanup config chatId
 
-let doDownload config client chatMessage =
+let doDownload config client (chatMessage: ChatMessage) =
     let chatId = chatMessage.ChatId
 
     let sendMessage s a =
@@ -141,8 +141,8 @@ let doDownload config client chatMessage =
     |> AsyncResult.bind (download client)
     |> convertReplyCleanup config chatId
 
-let reject config chatMessage =
-    sendMessageAsync config chatMessage.ChatId "You are not whitelisted. :^)"
+let reject config chatId =
+    sendMessageAsync config chatId "You are not whitelisted. :^)"
 
 let onUpdate config client settings (chatMessage: ChatMessage) =
     chatMessage |> isVideoMessage |> printfn "%A"
@@ -160,13 +160,13 @@ let onUpdate config client settings (chatMessage: ChatMessage) =
         | Command "/whitelist" msg when isAdmin -> return! sendWhitelist config settings msg
         | msg when isWhitelist && isVideoMessage msg -> return! convertWebm config client msg
         | msg when isWhitelist -> return! doDownload config client msg
-        | msg -> return! reject config msg
+        | msg -> return! reject config msg.ChatId
     }
 
-let sendError config chatMessage s =
+let sendError config chatId s =
     async {
         logf "Error encountered %s" s
-        let! result = sendMessageAsync config chatMessage.ChatId s
+        let! result = sendMessageAsync config chatId s
 
         match result with
         | Ok _ -> ()
@@ -177,7 +177,7 @@ let runImpl (settings: Settings) =
     let client = new HttpClient()
 
     let config =
-        { defaultConfig with
+        { Config.defaultConfig with
             Token = settings.Token
             Client = client
             OnError = fun e -> logf "Encountered error %A" e }
@@ -187,14 +187,13 @@ let runImpl (settings: Settings) =
         | None ->
             log
             <| sprintf "Unable to extract message: %A" context.Update
-
-            async.Zero()
         | Some message ->
             onUpdate config client settings message
-            |> AsyncResult.bindError (sendError config message)
-            |> Async.Ignore
+            |> AsyncResult.bindError (sendError config message.ChatId)
+            |> Async.RunSynchronously
+            |> ignore
 
-    startBotAsync config updatesArrived None
+    startBot config updatesArrived None
 
 let rec run (settings: Settings) =
     async {
