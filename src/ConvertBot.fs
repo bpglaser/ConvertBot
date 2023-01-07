@@ -174,7 +174,8 @@ let sendError config chatId s =
     }
 
 let runImpl (settings: Settings) =
-    let client = new HttpClient()
+    let client =
+        new HttpClient(new HttpRetry.HttpRetryMessageHandler(new HttpClientHandler()))
 
     let config =
         { Config.defaultConfig with
